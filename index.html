@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+    <title>Birthday gift generator</title>
+</head>
+<script>
+    async function getGift(age, interests) {
+        const request = await fetch("https://ai.hackclub.com/chat/completions", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                messages: [{
+                    "role": "user",
+                    "content": `/no-think Suggest a random birthday gift to buy to a ${age} year old. A short description of the person's interests is: ${interests}, and the gift should be related to that. The gift should be something that can be bought online. The response should be in the format: 'Gift: [gift name]<br>Description: [short description of the gift]'`
+                }]
+            })
+        })
+        const response = await request.json();
+        let contentInString = response.choices[0].message.content;
+        contentInString = contentInString.replace(/<think>[\s\S]*?<\/think>/g, '');
+        const giftMatch = contentInString.match(/Gift:\s*(.+?)(?:<br>|$)/i);
+        const descriptionMatch = contentInString.match(/Description:\s*(.+?)$/i);
+        
+        const giftName = giftMatch ? giftMatch[1].trim() : 'Unknown Gift';
+        const giftDescription = descriptionMatch ? descriptionMatch[1].trim() : 'No description available';
+        
+        document.body.innerHTML = `<h1 class="text-3xl font-bold underline">${giftName}</h1><p>${giftDescription}</p>`;
+    }
+</script>
+<body>
+    <form onsubmit="event.preventDefault(); getGift(document.getElementById('age').value, document.getElementById('interests').value);">
+        <label for="age">Recipient Age:</label>
+        <input type="number" id="age" name="age" min="0" max="122">
+        <br>
+        <label for="interests">Recipient Interests:</label>
+        <input type="text" id="interests" name="interests">
+        <br>
+        <button type="submit">Get Gift Suggestion</button>
+    </form>
+</body>
+</html>
