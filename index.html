@@ -6,8 +6,51 @@
   <script src="https://cdn.tailwindcss.com"></script>
     <title>Birthday gift generator</title>
 </head>
+<style>
+    .slide-left {
+        transform: translateX(-200px);
+        transition: transform 0.3s ease;
+    }
+    #chat-sidebar {
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+    }
+    #chat-sidebar.show {
+        transform: translateX(0);
+    }
+</style>
 <script>
+    let chatHistory = [];
+    
+    function addToChat(role, content) {
+        chatHistory.push({ role, content: parseMarkdown(content) });
+        updateChatDisplay();
+    }
+    
+    function updateChatDisplay() {
+        const chatContainer = document.getElementById('chat-messages');
+        chatContainer.innerHTML = '';
+        
+        chatHistory.forEach(message => {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-2 p-2 rounded text-sm ${message.role === 'user' ? 'bg-gray-500/20 text-gray-100' : 'bg-zinc-500/20 text-stone-100'}`;
+            messageDiv.innerHTML = `<strong>${message.role}:</strong> ${message.content}`;
+            chatContainer.appendChild(messageDiv);
+        });
+        
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
     async function getGift(age, interests) {
+        chatHistory = [];
+        updateChatDisplay();
+        
+        document.getElementById('main-content').classList.add('slide-left');
+        document.getElementById('chat-sidebar').classList.add('show');
+        
+        const userMessage = `Suggest a gift for a ${age} year old with interests: ${interests}`;
+        addToChat('user', userMessage);
+        
         const request = await fetch("https://ai.hackclub.com/chat/completions", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
@@ -23,22 +66,66 @@
         contentInString = contentInString.replace(/<think>[\s\S]*?<\/think>/g, '');
         const giftMatch = contentInString.match(/Gift:\s*(.+?)(?:<br>|$)/i);
         const descriptionMatch = contentInString.match(/Description:\s*(.+?)$/i);
+
+        const giftName = parseMarkdown(giftMatch ? giftMatch[1].trim() : 'Unknown Gift');
+        const giftDescription = parseMarkdown(descriptionMatch ? descriptionMatch[1].trim() : 'No description available');
+
+        addToChat('assistant', `Gift: ${giftName}\nDescription: ${giftDescription}`);
         
-        const giftName = giftMatch ? giftMatch[1].trim() : 'Unknown Gift';
-        const giftDescription = descriptionMatch ? descriptionMatch[1].trim() : 'No description available';
-        
-        document.body.innerHTML = `<h1 class="text-3xl font-bold underline">${giftName}</h1><p>${giftDescription}</p>`;
+        document.getElementById('gift-name').textContent = giftName;
+        document.getElementById('gift-description').textContent = giftDescription;
+        document.getElementById('description-placeholder').style.display = 'none';
+    }
+    async function newMessage(message) {
+        addToChat('user', message);
+        const request = await fetch("https://ai.hackclub.com/chat/completions", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                messages: chatHistory
+            })
+        })
+        const response = await request.json();
+        let contentInString = response.choices[0].message.content;
+        contentInString = contentInString.replace(/<think>[\s\S]*?<\/think>/g, '');
+        addToChat('assistant', contentInString);
+    }
+    function parseMarkdown(text) {
+        return text
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+            .replace(/###\s+([^\n]+)/g, '<h3>$1</h3>')
+            .replace(/##\s+([^\n]+)/g, '<h2>$1</h2>')
+            .replace(/#\s+([^\n]+)/g, '<h1>$1</h1>')
+            .replace(/\n/g, '<br>');
     }
 </script>
-<body>
-    <form onsubmit="event.preventDefault(); getGift(document.getElementById('age').value, document.getElementById('interests').value);">
-        <label for="age">Recipient Age:</label>
-        <input type="number" id="age" name="age" min="0" max="122">
-        <br>
-        <label for="interests">Recipient Interests:</label>
-        <input type="text" id="interests" name="interests">
-        <br>
-        <button type="submit">Get Gift Suggestion</button>
-    </form>
+<body class="min-h-screen w-full bg-gradient-to-br from-zinc-400 to-zinc-600 pt-12 pb-8 overflow-x-hidden">
+    <div id="main-content" class="transition-transform">
+        <h1 class="text-6xl font-bold mb-8 text-center text-white">Birthday Gift AI Generator</h1>
+        <div class="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-gray-400 opacity-20 blur-[100px]"></div>
+        <div class="mt-14 text-center text-3xl font-normal tracking-wide bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent">Your Gift:</div>
+        <div id="gift-name" class="mt-4 text-center text-5xl font-bold bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent">HERE YOUR GIFT WILL BE</div>
+        <div id="description-placeholder" class="mt-8 text-center text-2xl font-normal tracking-wide bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent">HERE YOUR IDEA DESCRIPTION WILL BE</div>
+        <div id="gift-description" class="mt-4 text-center text-sm md:text-lg bg-gradient-to-r from-zinc-100 to-zinc-300 bg-clip-text text-transparent px-4 max-w-lg mx-auto"></div>
+        <form onsubmit="event.preventDefault(); getGift(document.getElementById('age').value, document.getElementById('interests').value);" class="mt-12 max-w-md mx-auto bg-white/10 backdrop-blur-sm rounded-lg p-6">
+            <div class="mb-4">
+                <label for="age" class="block text-white font-medium mb-2">Recipient Age:</label>
+                <input type="number" id="age" name="age" min="0" max="122" required class="w-full p-3 rounded-lg border border-gray-300">
+            </div>
+            <div class="mb-6">
+                <label for="interests" class="block text-white font-medium mb-2">Recipient Interests:</label>
+                <input type="text" id="interests" name="interests" required class="w-full p-3 rounded-lg border border-gray-300" placeholder="e.g., reading, sports, music">
+            </div>
+            <button type="submit" class="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white font-bold py-3 px-6 rounded-lg hover:from-gray-600 hover:to-gray-700 transition duration-300">Get Gift Suggestion</button>
+        </form>
+    </div>
+    <div id="chat-sidebar" class="fixed top-0 right-0 w-[400px] h-full bg-white/20 backdrop-blur-sm p-4">
+        <h3 class="text-white font-bold mb-4">Chat</h3>
+        <div id="chat-messages" class="h-[calc(100%-100px)] overflow-y-auto mb-4 space-y-2"></div>
+        <form onsubmit="event.preventDefault(); newMessage(document.getElementById('chat-input').value); document.getElementById('chat-input').value='';" class="flex">
+            <input type="text" id="chat-input" class="flex-grow p-2 rounded-l-lg border border-gray-300" placeholder="Type your message..." required>
+            <button type="submit" class="bg-neutral-500 text-white px-4 py-2 rounded-r-lg hover:bg-neutral-600 transition duration-300">Send</button>
+    </div>
 </body>
 </html>
